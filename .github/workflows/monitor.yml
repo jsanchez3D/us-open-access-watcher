@@ -1,0 +1,51 @@
+name: US Open Access Watcher
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: us-open-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install requirements
+        run: pip install -r requirements.txt
+
+      - name: Run US Open monitor
+        env:
+          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
+          PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
+        run: python monitor.py
+
+      - name: Save monitor state
+        run: |
+          if [ -f state.json ]; then
+            git config user.name "US Open Access Watcher"
+            git config user.email "actions@github.com"
+            git add state.json
+
+            if ! git diff --cached --quiet; then
+              git commit -m "Update monitor state"
+              git push
+            else
+              echo "No state changes to save."
+            fi
+          fi
